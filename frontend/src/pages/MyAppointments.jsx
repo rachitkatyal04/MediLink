@@ -12,25 +12,31 @@ const MyAppointments = () => {
 
     const [appointments, setAppointments] = useState([])
     const [payment, setPayment] = useState('')
+    const [loading, setLoading] = useState(true)
 
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
     // Function to format the date eg. ( 20_01_2000 => 20 Jan 2000 )
     const slotDateFormat = (slotDate) => {
         const dateArray = slotDate.split('_')
-        return dateArray[0] + " " + months[Number(dateArray[1])] + " " + dateArray[2]
+        return dateArray[0] + " " + months[Number(dateArray[1]) - 1] + " " + dateArray[2]
     }
 
     // Getting User Appointments Data Using API
     const getUserAppointments = async () => {
         try {
-
+            setLoading(true)
             const { data } = await axios.get(backendUrl + '/api/user/appointments', { headers: { token } })
-            setAppointments(data.appointments.reverse())
-
+            if (data.success && data.appointments) {
+                setAppointments([...data.appointments].reverse())
+            } else {
+                setAppointments([])
+            }
         } catch (error) {
             console.log(error)
             toast.error(error.message)
+        } finally {
+            setLoading(false)
         }
     }
 
@@ -43,7 +49,7 @@ const MyAppointments = () => {
 
             if (data.success) {
                 toast.success(data.message)
-                getUserAppointments()
+                window.location.reload()
             } else {
                 toast.error(data.message)
             }
@@ -120,14 +126,42 @@ const MyAppointments = () => {
     useEffect(() => {
         if (token) {
             getUserAppointments()
+        } else {
+            setLoading(false)
         }
     }, [token])
+
+    // Handle browser back/forward button - reload page to get fresh data
+    useEffect(() => {
+        const handlePageShow = (event) => {
+            if (event.persisted) {
+                window.location.reload()
+            }
+        }
+        window.addEventListener('pageshow', handlePageShow)
+        return () => window.removeEventListener('pageshow', handlePageShow)
+    }, [])
+
+    if (!token) {
+        return (
+            <div className='min-h-[60vh] flex flex-col items-center justify-center'>
+                <p className='text-gray-500 text-lg'>Please login to view your appointments</p>
+                <button onClick={() => navigate('/login')} className='bg-primary text-white px-8 py-3 rounded-full mt-4'>Login</button>
+            </div>
+        )
+    }
 
     return (
         <div>
             <p className='pb-3 mt-12 text-lg font-medium text-gray-600 border-b'>My appointments</p>
             <div className=''>
-                {appointments.map((item, index) => (
+                {loading && (
+                    <p className='text-gray-500 text-center py-10'>Loading...</p>
+                )}
+                {!loading && appointments.length === 0 && (
+                    <p className='text-gray-500 text-center py-10'>No appointments found</p>
+                )}
+                {!loading && appointments.map((item, index) => (
                     <div key={index} className='grid grid-cols-[1fr_2fr] gap-4 sm:flex sm:gap-6 py-4 border-b'>
                         <div>
                             <img className='w-36 bg-[#EAEFFF]' src={item.docData.image} alt="" />
@@ -136,8 +170,8 @@ const MyAppointments = () => {
                             <p className='text-[#262626] text-base font-semibold'>{item.docData.name}</p>
                             <p>{item.docData.speciality}</p>
                             <p className='text-[#464646] font-medium mt-1'>Address:</p>
-                            <p className=''>{item.docData.address.line1}</p>
-                            <p className=''>{item.docData.address.line2}</p>
+                            <p className=''>{item.docData.address?.line1}</p>
+                            <p className=''>{item.docData.address?.line2}</p>
                             <p className=' mt-1'><span className='text-sm text-[#3C3C3C] font-medium'>Date & Time:</span> {slotDateFormat(item.slotDate)} |  {item.slotTime}</p>
                         </div>
                         <div></div>
